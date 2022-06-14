@@ -13,7 +13,6 @@ try:
         requirements = f.read().splitlines()
 except IOError as e:
     print(e)
-
 setup(
     name='yolov5',
     version='1.0',

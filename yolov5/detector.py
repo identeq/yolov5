@@ -7,9 +7,9 @@ from yolov5.utils.torch_utils import select_device
 
 
 class YoloV5Detector:
-    def __init__(self, model_name="yolov5s.pt", img_size=640):
+    def __init__(self, model_name="yolov5s.pt", img_size=640, device=''):
         self.img_size = img_size
-        self.device = select_device()
+        self.device = select_device(device=device)
         self.backend_model = DetectMultiBackend(model_name, device=self.device)
         self.model = AutoShapeV1(self.backend_model).to(self.device)
         self.labels = self.model.module.names if hasattr(self.model, 'module') else self.model.names

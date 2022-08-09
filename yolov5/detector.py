@@ -4,6 +4,7 @@
 """
 
 import random
+from typing import List
 
 import torch
 
@@ -19,6 +20,8 @@ class YoloV5Detector:
         self.model = AutoShapeV1(self.backend_model).to(self.device)
         self.labels = self.model.module.names if hasattr(self.model, 'module') else self.model.names
         self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in self.labels]
+        self._id2labels = {i: label for i, label in enumerate(self.labels)}
+        self._labels2ids = {label: i for i, label in enumerate(self.labels)}
 
     @torch.no_grad()
     def detect(self, image, thresh=0.25, iou_thres=0.45, classes=None, agnostic=False):
@@ -34,5 +37,5 @@ class YoloV5Detector:
             class_ids.append(int(class_id))
         return boxes, class_ids, confidences
 
-    def labels2ids(self, labels: list[str]):
-        return [self.labels.index(label) for label in labels]
+    def labels2ids(self, labels: List[str]):
+        return [self._labels2ids[label] for label in labels]

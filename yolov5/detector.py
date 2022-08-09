@@ -2,6 +2,11 @@
 -- Created by: Ashok Kumar Pant
 -- Created on: 8/1/22
 """
+
+import random
+
+import torch
+
 from yolov5.models.common import DetectMultiBackend, AutoShapeV1
 from yolov5.utils.torch_utils import select_device
 
@@ -13,7 +18,9 @@ class YoloV5Detector:
         self.backend_model = DetectMultiBackend(model_name, device=self.device)
         self.model = AutoShapeV1(self.backend_model).to(self.device)
         self.labels = self.model.module.names if hasattr(self.model, 'module') else self.model.names
+        self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in self.labels]
 
+    @torch.no_grad()
     def detect(self, image, thresh=0.25, iou_thres=0.45, classes=None, agnostic=False):
         results = self.model(image, size=self.img_size, conf=thresh, iou=iou_thres, classes=classes, agnostic=agnostic)
         boxes = []

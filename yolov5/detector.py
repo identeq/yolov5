@@ -15,13 +15,12 @@ if platform.system() != 'Windows':
     ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 import random
 
-from yolov5.models.common import DetectMultiBackend, AutoShapeV1
-from yolov5.utils.torch_utils import select_device
+from yolov5.models.common import DetectMultiBackend, AutoShape
+from yolov5.utils.torch_utils import select_device, smart_inference_mode
 
 from typing import List
 
 import numpy as np
-import torch
 from numpy import random
 
 from yolov7.utils.torch_utils import select_device
@@ -86,13 +85,13 @@ class YoloV5Detector:
         self.img_size = img_size
         self.device = select_device(device=device)
         self.backend_model = DetectMultiBackend(model_name, device=self.device)
-        self.model = AutoShapeV1(self.backend_model).to(self.device)
+        self.model = AutoShape(self.backend_model).to(self.device)
         self.labels = self.model.module.names if hasattr(self.model, 'module') else self.model.names
         self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in self.labels]
-        self._id2labels = {i: label for i, label in enumerate(self.labels)}
-        self._labels2ids = {label: i for i, label in enumerate(self.labels)}
+        self._id2labels = self.labels
+        self._labels2ids = {label: class_id for class_id, label in self.labels.items()}
 
-    @torch.no_grad()
+    @smart_inference_mode()
     def detect(self, image, thresh=0.25, iou_thresh=0.45, classes=None, class_labels=None, agnostic=False):
         if not classes and class_labels:
             classes = self.labels2ids(class_labels)
@@ -106,8 +105,8 @@ class YoloV5Detector:
             boxes.append([x0, y0, x1, y1])
             confidences.append(confidence)
             class_ids.append(int(class_id))
-        class_labels = [self._id2labels[label] for label in class_ids]
-        return _postprocess(boxes, confidences, class_ids, class_labels, image.shape[1], image.shape[0])
+        labels = [self._id2labels[class_id] for class_id in class_ids]
+        return _postprocess(boxes, confidences, class_ids, labels, image.shape[1], image.shape[0])
 
     def labels2ids(self, labels: List[str]):
         return [self._labels2ids[label] for label in labels]

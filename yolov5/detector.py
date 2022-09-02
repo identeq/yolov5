@@ -2,14 +2,83 @@
 -- Created by: Ashok Kumar Pant
 -- Created on: 8/1/22
 """
+import os
+import platform
+import sys
+from pathlib import Path
 
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[1]  # YOLOv5 root directory
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))  # add ROOT to PATH
+if platform.system() != 'Windows':
+    ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 import random
-from typing import List
-
-import torch
 
 from yolov5.models.common import DetectMultiBackend, AutoShapeV1
 from yolov5.utils.torch_utils import select_device
+
+from typing import List
+
+import numpy as np
+import torch
+from numpy import random
+
+from yolov7.utils.torch_utils import select_device
+
+
+class BoundingBox:
+    def __init__(self, class_id, label, confidence, bbox, image_width, image_height):
+        self.class_id = class_id
+        self.label = label
+        self.confidence = confidence
+        self.bbox = bbox  # t,l,b,r or x1,y1,x2,y2
+        self.bbox_normalized = np.array(bbox) / (image_width, image_height, image_width, image_height)
+        self.__x1 = bbox[0]
+        self.__y1 = bbox[1]
+        self.__x2 = bbox[2]
+        self.__y2 = bbox[3]
+        self.__u1 = self.bbox_normalized[0]
+        self.__v1 = self.bbox_normalized[1]
+        self.__u2 = self.bbox_normalized[2]
+        self.__v2 = self.bbox_normalized[3]
+
+    @property
+    def width(self):
+        return self.bbox[2] - self.__x1
+
+    @property
+    def height(self):
+        return self.__y2 - self.__y1
+
+    @property
+    def center_absolute(self):
+        return 0.5 * (self.__x1 + self.__x2), 0.5 * (self.__y1 + self.__y2)
+
+    @property
+    def center_normalized(self):
+        return 0.5 * (self.__u1 + self.__u2), 0.5 * (self.__v1 + self.__v2)
+
+    @property
+    def size_absolute(self):
+        return self.__x2 - self.__x1, self.__y2 - self.__y1
+
+    @property
+    def size_normalized(self):
+        return self.__u2 - self.__u1, self.__v2 - self.__v1
+
+    def __repr__(self) -> str:
+        return f'BoundingBox(class_id: {self.class_id}, label: {self.label}, bbox: {self.bbox}, confidence: {self.confidence:.2f})'
+
+
+def _postprocess(boxes, scores, classes, labels, img_w, img_h):
+    if len(boxes) == 0:
+        return boxes
+
+    detected_objects = []
+    for box, score, class_id, label in zip(boxes, scores, classes, labels):
+        detected_objects.append(BoundingBox(class_id, label, score, box, img_w, img_h))
+    return detected_objects
 
 
 class YoloV5Detector:
@@ -24,8 +93,10 @@ class YoloV5Detector:
         self._labels2ids = {label: i for i, label in enumerate(self.labels)}
 
     @torch.no_grad()
-    def detect(self, image, thresh=0.25, iou_thres=0.45, classes=None, agnostic=False):
-        results = self.model(image, size=self.img_size, conf=thresh, iou=iou_thres, classes=classes, agnostic=agnostic)
+    def detect(self, image, thresh=0.25, iou_thresh=0.45, classes=None, class_labels=None, agnostic=False):
+        if not classes and class_labels:
+            classes = self.labels2ids(class_labels)
+        results = self.model(image, size=self.img_size, conf=thresh, iou=iou_thresh, classes=classes, agnostic=agnostic)
         boxes = []
         confidences = []
         class_ids = []
@@ -33,9 +104,10 @@ class YoloV5Detector:
             x0, y0, x1, y1, confidence, class_id = results.xyxy[0][i].cpu().numpy().astype(float)
             x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
             boxes.append([x0, y0, x1, y1])
-            confidences.append(float(confidence))
+            confidences.append(confidence)
             class_ids.append(int(class_id))
-        return boxes, class_ids, confidences
+        class_labels = [self._id2labels[label] for label in class_ids]
+        return _postprocess(boxes, confidences, class_ids, class_labels, image.shape[1], image.shape[0])
 
     def labels2ids(self, labels: List[str]):
         return [self._labels2ids[label] for label in labels]

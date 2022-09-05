@@ -32,7 +32,7 @@ class BoundingBox:
         self.label = label
         self.confidence = confidence
         self.bbox = bbox  # t,l,b,r or x1,y1,x2,y2
-        self.bbox_normalized = np.array(bbox) / (image_width, image_height, image_width, image_height)
+        self.bbox_normalized = np.array(bbox) / (image_height, image_width, image_height, image_width)
         self.__x1 = bbox[0]
         self.__y1 = bbox[1]
         self.__x2 = bbox[2]
